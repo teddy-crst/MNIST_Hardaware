@@ -30,7 +30,7 @@ class Hardaware_FeedForward(nn.Module):
         if nb_classes == 1:
             self.fc2 = Linear(settings.hidden_layers_size[0], 1)  # Hidden 2 -> Output
         else:
-            self.fc2 = Linear(settings.hidden_layers_size[0], nb_classes, bias=False)  # Hidden 2 -> Output
+            self.fc2 = Linear(settings.hidden_layers_size[0], nb_classes, bias=True)  # Hidden 2 -> Output
         self.p_layers = [self.fc1.mask_w, self.fc1.mask_b, self.fc2.mask_w, self.fc2.mask_b]
 
         def weights_init(m):
@@ -46,7 +46,7 @@ class Hardaware_FeedForward(nn.Module):
             self._criterion = nn.CrossEntropyLoss(reduction='mean')  # reduction is sum since kld is computed in sum
         else:
             self._criterion = nn.CrossEntropyLoss(reduction='mean')
-        self._optimizer = optim.Adam(self.parameters(), lr=settings.learning_rate, weight_decay=0.0001)
+        self._optimizer = optim.Adam(self.parameters(), lr=settings.learning_rate, weight_decay=0)
 
     def forward(self, x: Any, training=False) -> Any:
         """
@@ -61,7 +61,7 @@ class Hardaware_FeedForward(nn.Module):
         x = self.fc2(x)
         return x
 
-    def infer(self, inputs, nb_samples: int = 10):
+    def infer(self, inputs=784, nb_samples: int = 10):
         """
         Use network inference for classification a set of input.
         :param inputs: The inputs to classify.
