@@ -47,11 +47,11 @@ class Linear(nn.Module):
     out_features: int
     weight: Tensor
 
-    def __init__(self, in_features: int, out_features: int, bias: bool = True, LRS=2e3, HRS=10e3, a_prog=-6.24e-4,
-                 b_prog=0.691, offset_mean=-0.589, offset_std=0.339, failure_mean_LRS=5.73e-4, failure_std_LRS=9.9e-5,
-                 ratio_failure_LRS=0.005, ratio_failure_HRS=0.005, pi=0.5, prior_sigma1=5, prior_sigma2=5,
-                 min_conductance=((1 / 1e5) * 1e6),
-                 scheme="DoubleColumn", device=None, dtype=None) -> None:
+    def __init__(self, in_features=784, out_features=2, bias=True, LRS=2e3, HRS=10e3, a_prog=-6.24e-4,
+                b_prog=0.691, offset_mean=-0.589, offset_std=0.339, failure_mean_LRS=5.73e-4, failure_std_LRS=9.9e-5,
+                ratio_failure_LRS=0.005, ratio_failure_HRS=0.005, pi=0.5, prior_sigma1=5, prior_sigma2=5,
+                min_conductance=((1 / 1e5) * 1e6),
+                scheme="DoubleColumn", device=None, dtype=None):
         """
         Initializes the network layer with the input parameters.
         Parameters
@@ -419,15 +419,19 @@ class Linear(nn.Module):
         for i in range(torch.numel(self.weight), 0, -1):
             if len(self.weight.shape) > 1 and self.weight.shape[0] > 1:
                 if i != 0:
-                    self.adj_s_w[y][x] = self.delta_sigma_dicts[str(i)] * 1e6
+                    if str(i) in self.delta_sigma_dicts:
+                        self.adj_s_w[y][x] = self.delta_sigma_dicts[str(i)] * 1e6
                 else:
                     self.adj_s_w[y][x] = 0
-                y += 1
-                if y == 8:
-                    y = 0
-                    x += 1
+                    y += 1
+                    if y == self.adj_off_w_p.shape[1]:  # Change from hardcoded 8 to the actual dimension size
+                        y = 0
+                        x += 1
+                        if x == self.adj_off_w_p.shape[0]:  # Make sure x does not exceed the tensor's dimension
+                            break
             else:
-                self.adj_s_w[0][x] = self.delta_sigma_dicts[str(i)] * 1e6
+                if str(i) in self.delta_sigma_dicts:
+                    self.adj_s_w[0][x] = self.delta_sigma_dicts[str(i)] * 1e6
                 x += 1
         self.adj_s_w[-1][-1] = 0
         x = 0
@@ -435,18 +439,22 @@ class Linear(nn.Module):
         for i in range(torch.numel(self.bias), 0, -1):
             if len(self.bias.shape) > 1 and self.bias.shape[0] > 1:
                 if i != 0:
-                    self.adj_s_b[y][x] = self.delta_sigma_dicts[str(i)] * 1e6
+                    if str(i) in self.delta_sigma_dicts:
+                        self.adj_s_b[y][x] = self.delta_sigma_dicts[str(i)] * 1e6
                 else:
                     self.adj_s_b[y][x] = 0
-                y += 1
-                if y == 8:
-                    y = 0
-                    x += 1
+                    y += 1
+                    if y == self.adj_off_b_p.shape[1]:  # Change from hardcoded 8 to the actual dimension size
+                        y = 0
+                        x += 1
+                        if x == self.adj_off_b_p.shape[0]:  # Make sure x does not exceed the tensor's dimension
+                            break
             else:
-                if len(self.adj_s_b.shape) > 1:
-                    self.adj_s_b[0][x] = self.delta_sigma_dicts[str(i)] * 1e6
-                else:
-                    self.adj_s_b[x] = self.delta_sigma_dicts[str(i)] * 1e6
+                if str(i) in self.delta_sigma_dicts:
+                    if len(self.adj_s_b.shape) > 1:
+                        self.adj_s_b[0][x] = self.delta_sigma_dicts[str(i)] * 1e6
+                    else:
+                        self.adj_s_b[x] = self.delta_sigma_dicts[str(i)] * 1e6
                 x += 1
         if len(self.adj_s_b.shape) > 1:
             self.adj_s_b[-1][-1] = 0
@@ -458,6 +466,7 @@ class Linear(nn.Module):
         else:
             self.adj_s_b_squared = torch.zeros(self.adj_s_b.shape)
             self.adj_s_w_squared = torch.zeros(self.adj_s_w.shape)
+
 
     def init_adj_mu(self):
         """
@@ -508,61 +517,26 @@ class Linear(nn.Module):
         """
         Code to sample new random detuning effects to neighbours programming from the database.
         """
-        x = 0
-        y = 0
-        for i in range(torch.numel(self.weight), 0, -1):
-            if len(self.weight.shape) > 1 and self.weight.shape[0] > 1:
-                if i != 0:
-                    self.adj_off_w_p[y][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
-                    self.adj_off_w_n[y][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
-                    if abs(self.adj_off_w_p[y][x]) > 4 * self.delta_sigma_dicts[
-                        str(i)] * 1e6:  # since probability of getting more than 4 * std is less thank 0.0001
-                        self.adj_off_w_p[y][x] = 60
-                    if abs(self.adj_off_w_n[y][x]) > 4 * self.delta_sigma_dicts[str(i)] * 1e6:
-                        self.adj_off_w_n[y][x] = 60
-                else:
-                    self.adj_off_w_p[y][x] = 0
-                    self.adj_off_w_n[y][x] = 0
-                y += 1
-                if y == 8:
-                    y = 0
-                    x += 1
-            else:
-                self.adj_off_w_p[0][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
-                self.adj_off_w_n[0][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
-                # since probability of getting more than 4 * std is less thank 0.0001
-                if abs(self.adj_off_w_p[y][x]) > 4 * self.delta_sigma_dicts[str(i)] * 1e6:
-                    self.adj_off_w_p[0][x] = 60
-                if abs(self.adj_off_w_n[y][x]) > 4 * self.delta_sigma_dicts[str(i)] * 1e6:
-                    self.adj_off_w_n[0][x] = 60
-                x += 1
-        self.adj_off_w_p[-1][-1] = 0
-        self.adj_off_w_n[-1][-1] = 0
-        x = 0
-        y = 0
-        for i in range(torch.numel(self.bias), 0, -1):
-            if len(self.bias.shape) > 1 and self.bias.shape[0] > 1:
-                if i != 0:
-                    self.adj_off_b_p[y][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
-                    self.adj_off_b_n[y][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
-                    if abs(self.adj_off_b_p[y][x]) > 4 * self.delta_sigma_dicts[
-                        str(i)] * 1e6:  # since probability of getting more than 4 * std is less thank 0.0001
-                        self.adj_off_b_p[0][x] = 60
-                    if abs(self.adj_off_b_n[y][x]) > 4 * self.delta_sigma_dicts[str(i)] * 1e6:
-                        self.adj_off_b_n[0][x] = 60
-                else:
-                    self.adj_off_b_p[y][x] = 0
-                    self.adj_off_b_n[y][x] = 0
-                y += 1
-                if y == 8:
-                    y = 0
-                    x += 1
-            else:
-                self.adj_off_b_p[x] = random.choice(self.delta_dicts[str(i)]) * 1e6
-                self.adj_off_b_n[x] = random.choice(self.delta_dicts[str(i)]) * 1e6
-                x += 1
-        self.adj_off_b_p[-1] = 0
-        self.adj_off_b_n[-1] = 0
+        
+        # Iterate through weight tensor
+        for y in range(self.adj_off_w_p.shape[0]):
+            for x in range(self.adj_off_w_p.shape[1]):
+                key = str(y * self.adj_off_w_p.shape[1] + x + 1)
+                if key not in self.delta_dicts or not self.delta_dicts[key]:
+                    continue
+
+                self.adj_off_w_p[y][x] = random.choice(self.delta_dicts[key]) * 1e6
+                self.adj_off_w_n[y][x] = random.choice(self.delta_dicts[key]) * 1e6
+
+        # Iterate through bias tensor
+        for x in range(self.adj_off_b_p.shape[0]):
+            key = str(x + 1)
+            if key not in self.delta_dicts or not self.delta_dicts[key]:
+                continue
+
+            self.adj_off_b_p[x] = random.choice(self.delta_dicts[key]) * 1e6
+            self.adj_off_b_n[x] = random.choice(self.delta_dicts[key]) * 1e6
+
 
     def forward(self, input: Tensor) -> Tensor:
         """
