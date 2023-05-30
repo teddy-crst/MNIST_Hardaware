@@ -106,7 +106,7 @@ class Settings:
     # ==================================================================================================================
 
     # The number hidden layer and their respective number of neurons.
-    hidden_layers_size: Sequence = (8,)
+    hidden_layers_size: Sequence = (64,)
 
     # Dropout rate for every dropout layers defined in networks.
     # If a notwork model doesn't have a dropout layer this setting will have no effect.

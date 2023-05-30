@@ -44,7 +44,7 @@ def test_standard(network: Module, test_dataset: Dataset, device: torch.device, 
 
     # Use the pyTorch data loader
     test_loader = DataLoader(test_dataset, batch_size=settings.batch_size, shuffle=True, num_workers=0)
-    nb_classes = 2  # len(test_dataset.classes) #TODO: CHECK HERE LEN TEST_DATASET
+    nb_classes = 10  # len(test_dataset.classes) #TODO: CHECK HERE LEN TEST_DATASET
     nb_correct = 0  # counter of correct classifications
     nb_total = 0  # counter of total classifications
     # Create the tensors
