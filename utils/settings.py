@@ -81,7 +81,7 @@ class Settings:
     train_data_augmentation: bool = False  # currently unused
 
     generate_new_mnist = True
-    inference_number_contour = 100
+    inference_number_contour = 10
     now = datetime.now()
     timestamp = datetime.timestamp(now)
     load_pretrained: bool = False
@@ -107,7 +107,7 @@ class Settings:
     # ==================================================================================================================
 
     # The number hidden layer and their respective number of neurons.
-    hidden_layers_size: Sequence = (64,)
+    hidden_layers_size: Sequence = (128,)
 
     # Dropout rate for every dropout layers defined in networks.
     # If a notwork model doesn't have a dropout layer this setting will have no effect.
@@ -127,7 +127,7 @@ class Settings:
     momentum: float = 0.9
 
     # criterion for half moon
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.CrossEntropyLoss()
 
     dataset_mu = 0  # currently unused
     dataset_sigma = 0  # currently unused

@@ -2,7 +2,7 @@ import torch
 from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 
-from plots.misc import plot_uncertainty_predicted_value
+from plots.misc import plot_uncertainty_single_image
 from utils.logger import logger
 from utils.settings import settings
 from utils.timer import SectionTimer
@@ -43,7 +43,7 @@ def test_standard(network: Module, test_dataset: Dataset, device: torch.device, 
     network.eval()
 
     # Use the pyTorch data loader
-    test_loader = DataLoader(test_dataset, batch_size=settings.batch_size, shuffle=True, num_workers=0)
+    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=True, num_workers=0)
     nb_classes = 10  # len(test_dataset.classes) #TODO: CHECK HERE LEN TEST_DATASET
     nb_correct = 0  # counter of correct classifications
     nb_total = 0  # counter of total classifications
@@ -75,6 +75,6 @@ def test_standard(network: Module, test_dataset: Dataset, device: torch.device, 
                 nb_correct += int(torch.eq(outputs.flatten(), labels).sum())
     # accuracy
     accuracy = float(nb_correct / nb_total)
-    plot_uncertainty_predicted_value(all_inputs, network)
+    plot_uncertainty_single_image(all_inputs, network)
     logger.info("mean accuracy: " + str(accuracy))
     return accuracy

@@ -192,41 +192,28 @@ def flatten_list(_2d_list):
     return flat_list
 
 
-def plot_uncertainty_predicted_value(all_inputs, network):
+def plot_uncertainty_single_image(image, network):
     """
-    Plots the uncertainty in the predicted values through simulation
-    Adapted from: https://www.pymc.io/projects/examples/en/latest/variational_inference/bayesian_neural_network_advi.html
+    Plots the uncertainty in the predicted values for a single MNIST image.
 
     Parameters
     ----------
-    all_inputs: the inputs to the network
-    network: The trained network to characterize
-
-    Returns
-    -------
-
+    image: The image to run through the network.
+    network: The trained network to characterize.
     """
-    l = 1  # limit
-    grid = np.mgrid[-l:l:200j, -l:l:200j]
-    grid_2d = grid.reshape(2, -1).T
-    outputs = network.infer(torch.tensor(grid_2d).float(), 1000)
-    network.layers[0].no_variability = True
-    network.layers[1].no_variability = True
-    cmap = "viridis_r"  # sns.cubehelix_palette(light=1, as_cmap=True)
-    fig, ax = plt.subplots(figsize=(16, 9))
-    testset = torch.load(settings.test_moon_dataset_location)
-    contour = ax.contourf(grid[0], grid[1], outputs[1][1].detach().numpy().reshape(200, 200), cmap=cmap, vmin=0,
-                          vmax=settings.vmax)
-    ax.scatter(testset.tensors[0][testset.tensors[1] == 1][:, 0], testset.tensors[0][testset.tensors[1] == 1][:, 1],
-               color="g", edgecolors="k")
-    ax.scatter(testset.tensors[0][testset.tensors[1] == 0][:, 0], testset.tensors[0][testset.tensors[1] == 0][:, 1],
-               color="cornflowerblue", edgecolors="k")
-    cbar = plt.colorbar(contour, ax=ax)
-    _ = ax.set(xlim=(0, l), ylim=(0, l), xlabel="X", ylabel="Y")
-    cbar.ax.set_ylabel("Standard deviation on simulated transfers")
+    # Run the image through the network 1000 times to get a distribution of predictions
+    outputs = network.infer(image.float().unsqueeze(0), 1000)
 
-    out_dir = Path('out/saved_plots')
-    out_dir.mkdir(exist_ok=True, parents=True)
-    plt.savefig(Path(out_dir, 'uncertainty_solution.png'), format='png', dpi=400, bbox_inches='tight')
+    # Compute the standard deviation of the predictions
+    std_dev = outputs[1][1].detach().numpy()
+
+    # Compute the mean standard deviation if std_dev is a multi-valued numpy array
+    if std_dev.size > 1:
+        std_dev = np.mean(std_dev)
+
+    # Plot the image
+    plt.figure(figsize=(5, 5))
+    plt.imshow(image, cmap='gray')
+    plt.title(f'Average standard deviation of predictions: {std_dev:.4f}')
+    plt.axis('off')
     plt.show()
-    return

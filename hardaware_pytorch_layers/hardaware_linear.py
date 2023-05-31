@@ -43,11 +43,11 @@ class Linear(nn.Module):
         torch.Size([128, 30])
     """
     __constants__ = ['in_features', 'out_features']
-    in_features: int
-    out_features: int
+    in_features: 784
+    out_features: 10
     weight: Tensor
 
-    def __init__(self, in_features=784, out_features=2, bias=True, LRS=2e3, HRS=10e3, a_prog=-6.24e-4,
+    def __init__(self, in_features=784, out_features=10, bias=True, LRS=2e3, HRS=10e3, a_prog=-6.24e-4,
                 b_prog=0.691, offset_mean=-0.589, offset_std=0.339, failure_mean_LRS=5.73e-4, failure_std_LRS=9.9e-5,
                 ratio_failure_LRS=0.005, ratio_failure_HRS=0.005, pi=0.5, prior_sigma1=5, prior_sigma2=5,
                 min_conductance=((1 / 1e5) * 1e6),
