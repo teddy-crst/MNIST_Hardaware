@@ -201,8 +201,8 @@ def plot_uncertainty_single_image(image, network):
     image: The image to run through the network.
     network: The trained network to characterize.
     """
-    # Run the image through the network 1000 times to get a distribution of predictions
-    outputs = network.infer(image.float().unsqueeze(0), 1000)
+    # Run the image through the network 100 times to get a distribution of predictions
+    outputs = network.infer(image.float().unsqueeze(0), 100)
 
     # Compute the standard deviation of the predictions
     std_dev = outputs[1][1].detach().numpy()
@@ -213,6 +213,7 @@ def plot_uncertainty_single_image(image, network):
 
     # Plot the image
     plt.figure(figsize=(5, 5))
+    image = image.reshape(28, 28)  # Reshape the image back to 2D
     plt.imshow(image, cmap='gray')
     plt.title(f'Average standard deviation of predictions: {std_dev:.4f}')
     plt.axis('off')

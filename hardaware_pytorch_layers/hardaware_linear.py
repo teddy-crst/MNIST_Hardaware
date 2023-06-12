@@ -43,11 +43,11 @@ class Linear(nn.Module):
         torch.Size([128, 30])
     """
     __constants__ = ['in_features', 'out_features']
-    in_features: 784
-    out_features: 10
+    in_features: int
+    out_features: int
     weight: Tensor
 
-    def __init__(self, in_features=784, out_features=10, bias=True, LRS=2e3, HRS=10e3, a_prog=-6.24e-4,
+    def __init__(self, in_features=int, out_features=int, bias=True, LRS=2e3, HRS=10e3, a_prog=-6.24e-4,
                 b_prog=0.691, offset_mean=-0.589, offset_std=0.339, failure_mean_LRS=5.73e-4, failure_std_LRS=9.9e-5,
                 ratio_failure_LRS=0.005, ratio_failure_HRS=0.005, pi=0.5, prior_sigma1=5, prior_sigma2=5,
                 min_conductance=((1 / 1e5) * 1e6),
@@ -194,14 +194,19 @@ class Linear(nn.Module):
             n_weight[0] = weight.abs().max().detach()
             n_weight[n_weight < 0] = 0
             pos_weight = weight.clone()
+            # print("weight:", weight)
             neg_weight = weight.clone() * -1
             pos_weight[pos_weight < 0] = 0
             neg_weight[neg_weight < 0] = 0
+            # print("neg_weight:", neg_weight)
             scaler.fit(n_weight.detach().reshape(-1, 1))  # Fit MinMaxScaler between 0 and max weight value
             cond_w_pos = scaler.transform(pos_weight.detach().reshape(-1, 1))
             cond_w_neg = scaler.transform(neg_weight.detach().reshape(-1, 1))
+            # print("transformed_neg_weight:", cond_w_neg)
             cond_w_pos = cond_w_pos.squeeze()
             cond_w_neg = cond_w_neg.squeeze()
+            
+            # print("cond_w_neg after squeeze:", cond_w_neg)
             sigma_resh = True
             delta_cond = cond_w_pos - cond_w_neg
             final_scaler = MinMaxScaler(feature_range=(delta_cond.min(), delta_cond.max()))
@@ -224,67 +229,89 @@ class Linear(nn.Module):
             final_scaler.fit(weight.detach().reshape(-1, 1))
             sigma_resh = False
         self.w_offset = w_off_sampler.sample()
+
         # Programming offset, variability + adjacent effect step
         offset_pos = (self.w_offset * cond_w_pos) / 100
-        cond_w_pos = np.add(cond_w_pos, offset_pos)
-
+        # print("offset_pos:", offset_pos)
         self.w_offset = w_off_sampler.sample()
         # Programming offset, variability + adjacent effect step
+
         offset_neg = (self.w_offset * cond_w_neg) / 100
-        cond_w_neg = np.add(cond_w_neg, offset_neg)
+        # print("offset_neg:", offset_neg)
         self.w_offset = w_off_sampler.loc * (cond_w_pos / 100 - cond_w_neg / 100) * ((
                                                                                              weight.max() - weight.min()) / (
                                                                                              self.max_cond - self.min_cond)).detach()
 
         sigma_p = self.a * cond_w_pos + self.b
+        # print("sigma_p:", sigma_p)
         sigma_n = self.a * cond_w_neg + self.b
+        # print("sigma_n:", sigma_n)
 
         sigma_p = sigma_p / 100 * cond_w_pos  # get the sigma in conductance value
         sigma_n = sigma_n / 100 * cond_w_neg
         offset_sigma_p = self.offset_std / 100 * cond_w_pos  # get the offset sigma in conductance value
+        # print("offset_sigma_p:", offset_sigma_p)
         offset_sigma_n = self.offset_std / 100 * cond_w_neg
+        # print("offset_sigma_n:", offset_sigma_n)
 
-        cond_w_pos = np.add(cond_w_pos, sigma_p * w_sampler.sample())  # reparametrization trick
-        cond_w_pos = np.add(cond_w_pos, adj_p)
+        # Conductance tuning imprecision
+        cond_w_pos = np.add(cond_w_pos, offset_pos)
+        # print("cond_w_pos:", cond_w_pos)
+        cond_w_neg = np.add(cond_w_neg, offset_neg)
+        # print("cond_w_neg:", cond_w_neg)
+        # Conductance tuning imprecision
 
-        cond_w_neg = np.add(cond_w_neg, sigma_n * w_sampler.sample())  # reparametrization trick
-        cond_w_neg = np.add(cond_w_neg, adj_n)
+        # Biasing scheme effect 
+        # cond_w_pos = np.add(cond_w_pos, sigma_p * w_sampler.sample().numpy())  # reparametrization trick
+        # # print("cond_w_pos after adding offset:", cond_w_pos)
+        # cond_w_pos = np.add(cond_w_pos, adj_p)
+        # # print("cond_w_pos after adding sigma:", cond_w_pos)
+        
+        # cond_w_neg = np.add(cond_w_neg, sigma_n * w_sampler.sample().numpy())  # reparametrization trick
+        # # print("cond_w_neg after adding offset:", cond_w_neg)
+        # cond_w_neg = np.add(cond_w_neg, adj_n)
+        # # print("cond_w_neg after adding sigma:", cond_w_neg)
+        # Biasing scheme effect 
 
-        # ======== Substitution step by failed devices ======== #
-        if self.ratio_failure_LRS != 0 or self.ratio_failure_HRS != 0:  # avoid division by 0
-            hrs_mask_pos = torch.FloatTensor(weight.shape).uniform_() <= self.ratio_failure_HRS / (
-                    self.ratio_failure_LRS + self.ratio_failure_HRS)
-            lrs_mask_pos = torch.bitwise_not(hrs_mask_pos)
-            mask_w_pos = torch.FloatTensor(
-                weight.shape).uniform_() <= self.ratio_failure  # Create a random weight mask based on the probability of failure of the devices
-            hrs_mask_pos = torch.bitwise_and(hrs_mask_pos, mask_w_pos)
-            lrs_mask_pos = torch.bitwise_and(lrs_mask_pos, mask_w_pos)
+    # ======== Substitution step by failed devices ======== #
+    # HRS/LRS device failure 
+        # if self.ratio_failure_LRS != 0 or self.ratio_failure_HRS != 0:  # avoid division by 0
+        #     hrs_mask_pos = torch.FloatTensor(weight.shape).uniform_() <= self.ratio_failure_HRS / (
+        #             self.ratio_failure_LRS + self.ratio_failure_HRS)
+        #     lrs_mask_pos = torch.bitwise_not(hrs_mask_pos)
+        #     mask_w_pos = torch.FloatTensor(
+        #         weight.shape).uniform_() <= self.ratio_failure  # Create a random weight mask based on the probability of failure of the devices
+        #     hrs_mask_pos = torch.bitwise_and(hrs_mask_pos, mask_w_pos)
+        #     lrs_mask_pos = torch.bitwise_and(lrs_mask_pos, mask_w_pos)
 
-            hrs_mask_neg = torch.FloatTensor(weight.shape).uniform_() <= self.ratio_failure_HRS / (
-                    self.ratio_failure_LRS + self.ratio_failure_HRS)
-            lrs_mask_neg = torch.bitwise_not(hrs_mask_neg)
-            mask_w_neg = torch.FloatTensor(
-                weight.shape).uniform_() <= self.ratio_failure  # Create a random weight mask based on the probability of failure of the devices
-            hrs_mask_neg = torch.bitwise_and(hrs_mask_neg, mask_w_neg)
-            lrs_mask_neg = torch.bitwise_and(lrs_mask_neg, mask_w_neg)
+        #     hrs_mask_neg = torch.FloatTensor(weight.shape).uniform_() <= self.ratio_failure_HRS / (
+        #             self.ratio_failure_LRS + self.ratio_failure_HRS)
+        #     lrs_mask_neg = torch.bitwise_not(hrs_mask_neg)
+        #     mask_w_neg = torch.FloatTensor(
+        #         weight.shape).uniform_() <= self.ratio_failure  # Create a random weight mask based on the probability of failure of the devices
+        #     hrs_mask_neg = torch.bitwise_and(hrs_mask_neg, mask_w_neg)
+        #     lrs_mask_neg = torch.bitwise_and(lrs_mask_neg, mask_w_neg)
 
-            self.mask_w = torch.logical_or(torch.logical_or(hrs_mask_neg, lrs_mask_neg),
-                                           torch.logical_or(hrs_mask_pos, lrs_mask_pos))
-            mask_w = self.mask_w
-            # Compile some statistics for how much substitution is seen on average
-            if len(mask_w) != 1:
-                if mask_w.count_nonzero().numpy() * 100 / np.prod(mask_w.shape) > self.max_mask_w:
-                    self.max_mask_w = mask_w.count_nonzero().numpy() * 100 / np.prod(mask_w.shape)
-                self.substitution.append(mask_w.count_nonzero().numpy() * 100 / len(mask_w))
-            cond_w_pos = cond_w_pos.float()
-            cond_w_pos[lrs_mask_pos] = w_failure_sampler.sample()[lrs_mask_pos] * 1e6
-            cond_w_pos[hrs_mask_pos] = ((self.max_HRS_conductance - self.min_conductance) * torch.rand(weight.shape)[
-                hrs_mask_pos] + self.min_conductance)
+        #     self.mask_w = torch.logical_or(torch.logical_or(hrs_mask_neg, lrs_mask_neg),
+        #                                    torch.logical_or(hrs_mask_pos, lrs_mask_pos))
+        #     mask_w = self.mask_w
+        #     # Compile some statistics for how much substitution is seen on average
+        #     if len(mask_w) != 1:
+        #         if mask_w.count_nonzero().numpy() * 100 / np.prod(mask_w.shape) > self.max_mask_w:
+        #             self.max_mask_w = mask_w.count_nonzero().numpy() * 100 / np.prod(mask_w.shape)
+        #         self.substitution.append(mask_w.count_nonzero().numpy() * 100 / len(mask_w))
+        #     cond_w_pos = cond_w_pos.float()
+        #     cond_w_pos[lrs_mask_pos] = w_failure_sampler.sample()[lrs_mask_pos] * 1e6
+        #     cond_w_pos[hrs_mask_pos] = ((self.max_HRS_conductance - self.min_conductance) * torch.rand(weight.shape)[
+        #         hrs_mask_pos] + self.min_conductance)
 
-            cond_w_neg = cond_w_neg.float()
-            cond_w_neg[lrs_mask_neg] = w_failure_sampler.sample()[lrs_mask_neg] * 1e6
-            cond_w_neg[hrs_mask_neg] = ((self.max_HRS_conductance - self.min_conductance) * torch.rand(weight.shape)[
-                hrs_mask_neg] + self.min_conductance)
+        #     cond_w_neg = cond_w_neg.float()
+        #     cond_w_neg[lrs_mask_neg] = w_failure_sampler.sample()[lrs_mask_neg] * 1e6
+        #     cond_w_neg[hrs_mask_neg] = ((self.max_HRS_conductance - self.min_conductance) * torch.rand(weight.shape)[
+        #         hrs_mask_neg] + self.min_conductance)
+        # print("cond_w_pos after substitution:", cond_w_pos)
+        # print("cond_w_neg after substitution:", cond_w_neg)
+    # HRS/LRS device failure 
         if sigma_resh:  # to reshape the sigma
             w_global = cond_w_pos - cond_w_neg
             if settings.elbo:
@@ -517,25 +544,61 @@ class Linear(nn.Module):
         """
         Code to sample new random detuning effects to neighbours programming from the database.
         """
-        
-        # Iterate through weight tensor
-        for y in range(self.adj_off_w_p.shape[0]):
-            for x in range(self.adj_off_w_p.shape[1]):
-                key = str(y * self.adj_off_w_p.shape[1] + x + 1)
-                if key not in self.delta_dicts or not self.delta_dicts[key]:
-                    continue
-
-                self.adj_off_w_p[y][x] = random.choice(self.delta_dicts[key]) * 1e6
-                self.adj_off_w_n[y][x] = random.choice(self.delta_dicts[key]) * 1e6
-
-        # Iterate through bias tensor
-        for x in range(self.adj_off_b_p.shape[0]):
-            key = str(x + 1)
-            if key not in self.delta_dicts or not self.delta_dicts[key]:
-                continue
-
-            self.adj_off_b_p[x] = random.choice(self.delta_dicts[key]) * 1e6
-            self.adj_off_b_n[x] = random.choice(self.delta_dicts[key]) * 1e6
+        x = 0
+        y = 0
+        for i in range(torch.numel(self.weight), 0, -1):
+            if len(self.weight.shape) > 1 and self.weight.shape[0] > 1:
+                if i != 0:
+                    self.adj_off_w_p[y][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
+                    self.adj_off_w_n[y][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
+                    if abs(self.adj_off_w_p[y][x]) > 4 * self.delta_sigma_dicts[
+                        str(i)] * 1e6:  # since probability of getting more than 4 * std is less thank 0.0001
+                        self.adj_off_w_p[y][x] = 60
+                    if abs(self.adj_off_w_n[y][x]) > 4 * self.delta_sigma_dicts[str(i)] * 1e6:
+                        self.adj_off_w_n[y][x] = 60
+                else:
+                    self.adj_off_w_p[y][x] = 0
+                    self.adj_off_w_n[y][x] = 0
+                y += 1
+                if y == 8:
+                    y = 0
+                    x += 1
+            else:
+                self.adj_off_w_p[0][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
+                self.adj_off_w_n[0][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
+                # since probability of getting more than 4 * std is less thank 0.0001
+                if abs(self.adj_off_w_p[y][x]) > 4 * self.delta_sigma_dicts[str(i)] * 1e6:
+                    self.adj_off_w_p[0][x] = 60
+                if abs(self.adj_off_w_n[y][x]) > 4 * self.delta_sigma_dicts[str(i)] * 1e6:
+                    self.adj_off_w_n[0][x] = 60
+                x += 1
+        self.adj_off_w_p[-1][-1] = 0
+        self.adj_off_w_n[-1][-1] = 0
+        x = 0
+        y = 0
+        for i in range(torch.numel(self.bias), 0, -1):
+            if len(self.bias.shape) > 1 and self.bias.shape[0] > 1:
+                if i != 0:
+                    self.adj_off_b_p[y][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
+                    self.adj_off_b_n[y][x] = random.choice(self.delta_dicts[str(i)]) * 1e6
+                    if abs(self.adj_off_b_p[y][x]) > 4 * self.delta_sigma_dicts[
+                        str(i)] * 1e6:  # since probability of getting more than 4 * std is less thank 0.0001
+                        self.adj_off_b_p[0][x] = 60
+                    if abs(self.adj_off_b_n[y][x]) > 4 * self.delta_sigma_dicts[str(i)] * 1e6:
+                        self.adj_off_b_n[0][x] = 60
+                else:
+                    self.adj_off_b_p[y][x] = 0
+                    self.adj_off_b_n[y][x] = 0
+                y += 1
+                if y == 8:
+                    y = 0
+                    x += 1
+            else:
+                self.adj_off_b_p[x] = random.choice(self.delta_dicts[str(i)]) * 1e6
+                self.adj_off_b_n[x] = random.choice(self.delta_dicts[str(i)]) * 1e6
+                x += 1
+        self.adj_off_b_p[-1] = 0
+        self.adj_off_b_n[-1] = 0
 
 
     def forward(self, input: Tensor) -> Tensor:
@@ -549,7 +612,11 @@ class Linear(nn.Module):
             new_bias = self.bias
         else:
             self.kld = 0  # RESET kullback leibler divergence
-            self.sample_adj_effect_offsets()  # sample random offsets due to neighbour programming before hand
+
+            # Biasing scheme effect
+            # self.sample_adj_effect_offsets()  # sample random offsets due to neighbour programming before hand
+            # Biasing scheme effect
+
             # ====== weight forward =======
             new_weight, self.mask_w_weight, sc_w = self.w_forward(self.weight, self.w_scaler, self.w_scaler_dc,
                                                                   self.w_offset_sampler, self.w_sampler,

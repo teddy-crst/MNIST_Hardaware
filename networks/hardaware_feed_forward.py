@@ -16,7 +16,7 @@ class Hardaware_FeedForward(nn.Module):
     Should be use as an example.
     """
 
-    def __init__(self, input_size: 784, nb_classes: 10, elbo: bool):
+    def __init__(self, input_size: int, nb_classes: int, elbo: bool):
         """
         Create a new network with 2 hidden layers fully connected.
 
@@ -55,20 +55,21 @@ class Hardaware_FeedForward(nn.Module):
         :param x: One input of the dataset
         :return: The output of the network
         """
-        x = torch.flatten(x, start_dim=1) 
+        x = torch.flatten(x, start_dim=1)
         x = self.dropout(x)
-        x = torch.sigmoid(self.fc1(x))
+        x = torch.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
         return x
 
-    def infer(self, inputs: torch.Tensor, nb_samples: int = 10):
+    def infer(self, inputs, nb_samples: int = 10):
         """
         Use network inference for classification a set of input.
         :param inputs: The inputs to classify.
         :param nb_sample: Not used here, just added for simple compatibility with Bayesian models.
         :return: The class inferred by this method and the confidence it this result (between 0 and 1).
         """
+        inputs = inputs.view(-1, inputs.size(-1))
         # Prediction samples
         self.fc1.no_variability = False
         self.fc2.no_variability = False
@@ -90,7 +91,7 @@ class Hardaware_FeedForward(nn.Module):
             individual_preds = np.round(np.array(outputs).squeeze())
         return predictions, (means, stds), individual_preds
 
-    def training_step(self, inputs: 784, labels: 10):
+    def training_step(self, inputs: Any, labels: Any):
         """
         Define the logic for one training step.
 
@@ -153,7 +154,7 @@ class Hardaware_FeedForward(nn.Module):
         """
         return tr.Compose([
             # Normalize the pixel values to be between 0 and 1
-            tr.Normalize((0.5,), (0.5,))
+            tr.Normalize((0.1307,), (0.3081,))
         ])
 
     def get_loss_name(self) -> str:

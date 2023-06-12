@@ -10,7 +10,7 @@ from utils.timer import SectionTimer
 
 def test_standard(network: Module, test_dataset: Dataset, device: torch.device, test_name: str = '',
                   final: bool = False,
-                  limit: int = 0) -> float:
+                  limit: int = 0, num_images: int = 10) -> float:
     """
     Start testing the network on a dataset.
 
@@ -20,6 +20,7 @@ def test_standard(network: Module, test_dataset: Dataset, device: torch.device, 
     :param test_name: Name of this test for logging and timers.
     :param final: If true this is the final test, will show in log info and save results in file.
     :param limit: Limit of item from the dataset to evaluate during this testing (0 to run process the whole dataset).
+    :param num_images: Number of images for which to plot the uncertainty.
     :return: The overall accuracy.
     """
 
@@ -33,17 +34,7 @@ def test_standard(network: Module, test_dataset: Dataset, device: torch.device, 
     network.eval()
 
     # Use the pyTorch data loader
-    if test_name:
-        test_name = ' ' + test_name
-
-    nb_test_items = min(len(test_dataset), limit) if limit else len(test_dataset)
-    logger.debug(f'Testing{test_name} on {nb_test_items:n} inputs')
-
-    # Turn on the inference mode of the network
-    network.eval()
-
-    # Use the pyTorch data loader
-    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=True, num_workers=0)
+    test_loader = DataLoader(test_dataset, batch_size=settings.batch_size, shuffle=True, num_workers=0)
     nb_classes = 10  # len(test_dataset.classes) #TODO: CHECK HERE LEN TEST_DATASET
     nb_correct = 0  # counter of correct classifications
     nb_total = 0  # counter of total classifications
@@ -67,14 +58,18 @@ def test_standard(network: Module, test_dataset: Dataset, device: torch.device, 
                 all_stds = torch.cat((all_stds, outputs[1][1]))
                 all_outputs = torch.cat((all_outputs, outputs[0]))
                 nb_total += len(labels)
-                nb_correct += int(torch.eq(outputs[0].flatten(), labels).sum())
+                nb_correct += int(torch.eq(torch.argmax(outputs[0], dim=1), labels).sum())
             else:
                 all_inputs = torch.cat((all_inputs, inputs))
                 all_outputs = torch.cat((all_outputs, outputs.flatten()))
                 nb_total += len(labels)
                 nb_correct += int(torch.eq(outputs.flatten(), labels).sum())
+
+            # Plot the uncertainty for the first num_images images
+            if i < num_images:
+                plot_uncertainty_single_image(inputs[0], network)
+
     # accuracy
     accuracy = float(nb_correct / nb_total)
-    plot_uncertainty_single_image(all_inputs, network)
     logger.info("mean accuracy: " + str(accuracy))
     return accuracy

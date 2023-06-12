@@ -30,14 +30,14 @@ def main():
     settings.bayesian_complexity_cost_weight = 1 / (trainset.__len__())
     logger.info("Selected network: " + name_network_dict[settings.choice])
     if settings.choice == 1:
-        nn = network_dict[settings.choice](784, 1, elbo=settings.elbo)
+        nn = network_dict[settings.choice](784, 10, elbo=settings.elbo)
     else:
-        nn = network_dict[settings.choice](784, 1)
+        nn = network_dict[settings.choice](784, 10)
     train_standard(nn, trainset, testset, torch_device)
     acc = test_standard(nn, testset, torch_device)
     if settings.save_network:
         torch.save(nn, settings.pretrained_address)
-    return
+    return 
 
 
 def compare_networks():
