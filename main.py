@@ -19,6 +19,7 @@ torch_device = torch.device("cpu")
 def main():
     if settings.generate_new_mnist:  # If we want to generate a new MNIST dataset
         trainset, testset, validationset = generate_mnist()
+        os.makedirs(settings.dataset_dir, exist_ok=True)
         torch.save(trainset, settings.train_mnist_dataset_location)
         torch.save(testset, settings.test_mnist_dataset_location)
         torch.save(validationset, settings.validation_mnist_dataset_location)

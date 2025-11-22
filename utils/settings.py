@@ -6,7 +6,6 @@ from typing import Sequence, Union
 
 import configargparse
 import torch.nn as nn
-from numpy.distutils.misc_util import is_sequence
 
 from utils.logger import logger
 
@@ -81,6 +80,7 @@ class Settings:
     train_data_augmentation: bool = False  # currently unused
 
     generate_new_mnist = True
+    dataset_dir: str = os.path.join(os.getcwd(), "dataset")
     inference_number_contour = 10
     now = datetime.now()
     timestamp = datetime.timestamp(now)
@@ -91,9 +91,9 @@ class Settings:
                                2: (os.getcwd() + "/trained_networks/FF_" + str(timestamp).replace(".", "") + ".pt"),
                                3: (os.getcwd() + "/trained_networks/BFF_" + str(timestamp).replace(".", "") + ".pt")}
     pretrained_address = pretrained_address_dict[choice]
-    train_mnist_dataset_location = 'C:/Users/theod/Desktop/Nouveau dossier/MNIST_Hardaware/dataset/train_mnist_dataset.pt'
-    test_mnist_dataset_location = 'C:/Users/theod/Desktop/Nouveau dossier/MNIST_Hardaware/dataset/test_mnist_dataset.pt'
-    validation_mnist_dataset_location = 'C:/Users/theod/Desktop/Nouveau dossier/MNIST_Hardaware/dataset/validation_mnist_dataset.pt'
+    train_mnist_dataset_location = os.path.join(dataset_dir, 'train_mnist_dataset.pt')
+    test_mnist_dataset_location = os.path.join(dataset_dir, 'test_mnist_dataset.pt')
+    validation_mnist_dataset_location = os.path.join(dataset_dir, 'validation_mnist_dataset.pt')
 
     # The number of data loader workers, to take advantage of multithreading. Always disable with CUDA.
     # 0 means automatic setting (using cpu count).
@@ -216,10 +216,13 @@ class Settings:
                 return True
             raise argparse.ArgumentTypeError(f'{arg_value} is not a valid boolean value')
 
+        def is_sequence_type(arg_value):
+            return isinstance(arg_value, Sequence) and not isinstance(arg_value, (str, bytes, bytearray))
+
         def type_mapping(arg_value):
             if type(arg_value) == bool:
                 return str_to_bool
-            if is_sequence(arg_value):
+            if is_sequence_type(arg_value):
                 if len(arg_value) == 0:
                     return str
                 else:
@@ -240,7 +243,7 @@ class Settings:
                            f'--{name}',
                            dest=name,
                            required=False,
-                           action='append' if is_sequence(value) else 'store',
+                           action='append' if is_sequence_type(value) else 'store',
                            type=type_mapping(value))
 
         # Load arguments form file, environment and command line to override the defaults
