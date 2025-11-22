@@ -27,6 +27,21 @@ mpl.rcParams['ytick.minor.size'] = 5
 mpl.rcParams['ytick.minor.width'] = 1.5
 
 
+def save_or_show(fig: plt.Figure, path: Path | str | None = None) -> None:
+    """Save or display a matplotlib figure based on global settings."""
+
+    save_target = Path(path) if path else None
+
+    if settings.save_images and save_target:
+        save_target.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_target, bbox_inches='tight')
+
+    if settings.show_images:
+        plt.show()
+    else:
+        plt.close(fig)
+
+
 def plot_train_progress(loss_evolution: List[float], accuracy_evolution: List[dict] = None,
                         batch_per_epoch: int = 0) -> None:
     """
@@ -73,9 +88,7 @@ def plot_train_progress(loss_evolution: List[float], accuracy_evolution: List[di
 
         plt.title('Training evolution')
         ax1.set_xlabel(f'Batch number (size: {settings.batch_size:n})')
-
-
-#        save_plot('train_progress')
+        save_or_show(fig, settings.project_root / "plots" / "train_progress.png")
 
 def plot_confusion_matrix(nb_labels_predictions: np.ndarray, class_names: List[str] = None,
                           annotations: bool = True) -> None:
@@ -104,6 +117,7 @@ def plot_confusion_matrix(nb_labels_predictions: np.ndarray, class_names: List[s
               f'with {overall_accuracy * 100:.2f}% overall accuracy')
     plt.xlabel('Predictions')
     plt.ylabel('Labels')
+    save_or_show(plt.gcf(), settings.project_root / "plots" / "confusion_matrix.png")
 
 
 def plot_fn(train, test, validation):
@@ -128,14 +142,14 @@ def plot_fn(train, test, validation):
         test_xs = test_coords[:, 0]
         test_ys = test_coords[:, 1]
         plt.scatter(test_xs, test_ys, s=1, label='test')
-    if test is not None:
+    if validation is not None:
         validation_coords, validation_labels = validation
         validation_xs = validation_coords[:, 0]
         validation_ys = validation_coords[:, 1]
         plt.scatter(validation_xs, validation_ys, s=1, label='validation')
     plt.legend()
-    plt.show()
     format_plot('$x$', '$f$')
+    save_or_show(plt.gcf(), settings.project_root / "plots" / "dataset_split.png")
 
 
 def format_plot(x=None, y=None):
@@ -176,7 +190,7 @@ def plot_weight_distribution(network):
     ax.set_title(title)
     ax.set_xlabel("Value")
     ax.set_ylabel("Probability Density")
-    plt.show()
+    save_or_show(fig, settings.project_root / "plots" / "weight_distribution.png")
     return
 
 
@@ -217,4 +231,4 @@ def plot_uncertainty_single_image(image, network):
     plt.imshow(image, cmap='gray')
     plt.title(f'Average standard deviation of predictions: {std_dev:.4f}')
     plt.axis('off')
-    plt.show()
+    save_or_show(plt.gcf(), settings.project_root / "plots" / "uncertainty.png")

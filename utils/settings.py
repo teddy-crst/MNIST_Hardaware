@@ -1,7 +1,7 @@
 import argparse
-import os
 from dataclasses import asdict, dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Sequence, Union
 
 import configargparse
@@ -79,21 +79,23 @@ class Settings:
     # If True, data augmentation methods will be applied to increase the size of the train dataset.
     train_data_augmentation: bool = False  # currently unused
 
+    project_root: Path = Path(__file__).resolve().parent.parent
+    dataset_dir: Path = project_root / "dataset"
     generate_new_mnist = True
-    dataset_dir: str = os.path.join(os.getcwd(), "dataset")
     inference_number_contour = 10
     now = datetime.now()
     timestamp = datetime.timestamp(now)
+    trained_networks_dir: Path = project_root / "trained_networks"
     load_pretrained: bool = False
     overwrite_pretrained: bool = False
     overwrite_pretrained_bayesian: bool = True
-    pretrained_address_dict = {1: (os.getcwd() + "/trained_networks/HAFF_" + str(timestamp).replace(".", "") + ".pt"),
-                               2: (os.getcwd() + "/trained_networks/FF_" + str(timestamp).replace(".", "") + ".pt"),
-                               3: (os.getcwd() + "/trained_networks/BFF_" + str(timestamp).replace(".", "") + ".pt")}
+    pretrained_address_dict = {1: trained_networks_dir / f"HAFF_{str(timestamp).replace('.', '')}.pt",
+                               2: trained_networks_dir / f"FF_{str(timestamp).replace('.', '')}.pt",
+                               3: trained_networks_dir / f"BFF_{str(timestamp).replace('.', '')}.pt"}
     pretrained_address = pretrained_address_dict[choice]
-    train_mnist_dataset_location = os.path.join(dataset_dir, 'train_mnist_dataset.pt')
-    test_mnist_dataset_location = os.path.join(dataset_dir, 'test_mnist_dataset.pt')
-    validation_mnist_dataset_location = os.path.join(dataset_dir, 'validation_mnist_dataset.pt')
+    train_mnist_dataset_location = dataset_dir / 'train_mnist_dataset.pt'
+    test_mnist_dataset_location = dataset_dir / 'test_mnist_dataset.pt'
+    validation_mnist_dataset_location = dataset_dir / 'validation_mnist_dataset.pt'
 
     # The number of data loader workers, to take advantage of multithreading. Always disable with CUDA.
     # 0 means automatic setting (using cpu count).
