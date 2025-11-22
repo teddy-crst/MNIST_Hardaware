@@ -59,7 +59,10 @@ def generate_mnist(
 
 
 def _reshape_flattened(image: torch.Tensor) -> torch.Tensor:
-    return image.view(28, 28)
+    side = int(np.sqrt(image.numel()))
+    if side * side != image.numel():
+        raise ValueError("Unable to infer square shape for MNIST sample")
+    return image.view(side, side)
 
 
 def _get_samples(dataset: Dataset, limit: int, generator: torch.Generator | None = None) -> Iterable[tuple[torch.Tensor, int]]:
@@ -75,6 +78,9 @@ def preview_mnist_samples(dataset: Dataset, rows: int = 2, cols: int = 5, save_p
     The function respects the global visualization settings and can write the
     preview image to disk when ``settings.save_images`` is enabled.
     """
+
+    if not (settings.show_images or settings.save_images):
+        return
 
     total = rows * cols
     samples = list(_get_samples(dataset, total))

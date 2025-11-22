@@ -38,8 +38,7 @@ def save_or_show(fig: plt.Figure, path: Path | str | None = None) -> None:
 
     if settings.show_images:
         plt.show()
-    else:
-        plt.close(fig)
+    plt.close(fig)
 
 
 def plot_train_progress(loss_evolution: List[float], accuracy_evolution: List[dict] = None,

@@ -83,19 +83,16 @@ class Settings:
     dataset_dir: Path = project_root / "dataset"
     generate_new_mnist = True
     inference_number_contour = 10
-    now = datetime.now()
-    timestamp = datetime.timestamp(now)
+    timestamp = datetime.timestamp(datetime.now())
     trained_networks_dir: Path = project_root / "trained_networks"
     load_pretrained: bool = False
     overwrite_pretrained: bool = False
     overwrite_pretrained_bayesian: bool = True
-    pretrained_address_dict = {1: trained_networks_dir / f"HAFF_{str(timestamp).replace('.', '')}.pt",
-                               2: trained_networks_dir / f"FF_{str(timestamp).replace('.', '')}.pt",
-                               3: trained_networks_dir / f"BFF_{str(timestamp).replace('.', '')}.pt"}
-    pretrained_address = pretrained_address_dict[choice]
-    train_mnist_dataset_location = dataset_dir / 'train_mnist_dataset.pt'
-    test_mnist_dataset_location = dataset_dir / 'test_mnist_dataset.pt'
-    validation_mnist_dataset_location = dataset_dir / 'validation_mnist_dataset.pt'
+    pretrained_address_dict = None  # refreshed after configuration loading
+    pretrained_address = None
+    train_mnist_dataset_location: Path = dataset_dir / 'train_mnist_dataset.pt'
+    test_mnist_dataset_location: Path = dataset_dir / 'test_mnist_dataset.pt'
+    validation_mnist_dataset_location: Path = dataset_dir / 'validation_mnist_dataset.pt'
 
     # The number of data loader workers, to take advantage of multithreading. Always disable with CUDA.
     # 0 means automatic setting (using cpu count).
@@ -196,7 +193,36 @@ class Settings:
         """
         Create the setting object.
         """
+        self._refresh_paths()
         self._load_file_and_cmd()
+        self._refresh_paths()
+        self.validate()
+
+    def _refresh_paths(self) -> None:
+        """Rebuild derived filesystem paths after configuration changes."""
+        self.project_root = Path(__file__).resolve().parent.parent
+
+        dataset_dir = Path(self.dataset_dir)
+        if not dataset_dir.is_absolute():
+            dataset_dir = self.project_root / dataset_dir
+        self.dataset_dir = dataset_dir
+
+        trained_networks_dir = Path(self.trained_networks_dir)
+        if not trained_networks_dir.is_absolute():
+            trained_networks_dir = self.project_root / trained_networks_dir
+        self.trained_networks_dir = trained_networks_dir
+
+        sanitized_timestamp = str(self.timestamp).replace('.', '')
+        self.pretrained_address_dict = {
+            1: self.trained_networks_dir / f"HAFF_{sanitized_timestamp}.pt",
+            2: self.trained_networks_dir / f"FF_{sanitized_timestamp}.pt",
+            3: self.trained_networks_dir / f"BFF_{sanitized_timestamp}.pt",
+        }
+        self.pretrained_address = self.pretrained_address_dict.get(self.choice)
+
+        self.train_mnist_dataset_location = self.dataset_dir / 'train_mnist_dataset.pt'
+        self.test_mnist_dataset_location = self.dataset_dir / 'test_mnist_dataset.pt'
+        self.validation_mnist_dataset_location = self.dataset_dir / 'validation_mnist_dataset.pt'
 
     def _load_file_and_cmd(self) -> None:
         """
@@ -256,15 +282,14 @@ class Settings:
                 # Directly set the value to bypass the "__setattr__" function
                 self.__dict__[name] = value
 
-        self.validate()
-
     def __setattr__(self, name, value) -> None:
         """
         Set an attribute and valide the new value.
         :param name: The name of the attribut
         :param value: The value of the attribut
         """
-        logger.debug(f'Setting "{name}" changed from "{getattr(self, name)}" to "{value}".')
+        previous_value = self.__dict__.get(name, None)
+        logger.debug(f'Setting "{name}" changed from "{previous_value}" to "{value}".')
         self.__dict__[name] = value
 
     def __delattr__(self, name):
