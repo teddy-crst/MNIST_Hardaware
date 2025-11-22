@@ -1,11 +1,12 @@
 import os
+from pathlib import Path
 
 import torch
 
-from dataset.mnist_dataset import generate_mnist
+from dataset.mnist_dataset import generate_mnist, preview_mnist_samples
 from networks.feed_forward import FeedForward
 from networks.hardaware_feed_forward import Hardaware_FeedForward
-from plots.misc import plot_fn
+from plots.misc import plot_fn, plot_weight_distribution
 from test_standard import test_standard
 from train_standard import train_standard
 from utils.logger import logger
@@ -17,16 +18,25 @@ torch_device = torch.device("cpu")
 
 
 def main():
-    if settings.generate_new_mnist:  # If we want to generate a new MNIST dataset
-        trainset, testset, validationset = generate_mnist()
+    data_files = [
+        settings.train_mnist_dataset_location,
+        settings.test_mnist_dataset_location,
+        settings.validation_mnist_dataset_location,
+    ]
+    os.makedirs(settings.dataset_dir, exist_ok=True)
+
+    if settings.generate_new_mnist or not all(Path(path).exists() for path in data_files):
+        if not settings.generate_new_mnist:
+            logger.warning("Dataset artifacts missing; regenerating MNIST datasets.")
+        trainset, testset, validationset = generate_mnist(root=settings.dataset_dir)
         torch.save(trainset, settings.train_mnist_dataset_location)
         torch.save(testset, settings.test_mnist_dataset_location)
         torch.save(validationset, settings.validation_mnist_dataset_location)
+        preview_mnist_samples(trainset)
     else:  # Loading the dataset
         trainset = torch.load(settings.train_mnist_dataset_location)
         testset = torch.load(settings.test_mnist_dataset_location)
         validationset = torch.load(settings.validation_mnist_dataset_location)
-        # plot_fn((trainset.tensors[0],trainset.tensors[1]),(testset.tensors[0],testset.tensors[1]),(validationset.tensors[0],validationset.tensors[1]))
     settings.bayesian_complexity_cost_weight = 1 / (trainset.__len__())
     logger.info("Selected network: " + name_network_dict[settings.choice])
     if settings.choice == 1:
@@ -35,9 +45,11 @@ def main():
         nn = network_dict[settings.choice](784, 10)
     train_standard(nn, trainset, testset, torch_device)
     acc = test_standard(nn, testset, torch_device)
+    if settings.show_images or settings.save_images:
+        plot_weight_distribution(nn)
     if settings.save_network:
         torch.save(nn, settings.pretrained_address)
-    return 
+    return
 
 
 def compare_networks():
